@@ -1,0 +1,121 @@
+---
+title: "EcoData Technology PhenoGAMs"
+subtitle: "Generalized additive models, kernel density estimation, and multiple data sources for phenological modeling"
+format: 
+  pdf:
+    mainfont: Lato
+    margin-top: '0.5in'
+    margin-bottom: '0.5in'
+    margin-left: '0.5in'
+    margin-right: '0.5in'
+    linestretch: 1.25
+  docx: default
+---
+
+```{r, include=F}
+library(tidyverse)
+library(brms)
+library(tidybayes)
+library(ecodatamisc)
+library(lubridate)
+library(leaflet)
+source("../src/phenoGAM_functions.R")
+
+theme_set(theme_ecodata())
+
+d <- read_csv("../data/cleaned/r_padi_cdd.csv")
+il <- read_rds("../fit_models/negbinom_gam_Illinois.rds")
+```
+
+
+```{r, cache=T, echo=F}
+il_p <- data.frame(cdd = seq(from = 0, 
+                             to = max(il$data$cdd, na.rm = T), 
+                             by = 1)) %>% 
+  add_fitted_draws(il) %>% 
+  median_hdci()
+
+il_peak_dist <- data.frame(cdd = seq(from = 0, 
+                                     to = max(il$data$cdd, na.rm = T), 
+                                     by = 1)) %>% 
+  add_fitted_draws(il) %>% 
+  ungroup() %>% 
+  group_by(.draw) %>% 
+  slice_max(.value, n = 1) %>% 
+  ungroup() %>% 
+  median_hdci()
+
+cdd_med <- il_peak_dist$cdd
+cdd_lo <- il_peak_dist$cdd.lower
+cdd_hi <- il_peak_dist$cdd.upper
+
+```
+
+```{r, echo=F, include=F}
+
+# steps to implement:
+# 1) generate CDD curve for site
+# 2) use this as the input to add_fitted_draws()
+# 3) then do the summaries and plots
+
+
+tibble(siteid = "IL",
+       date = ymd("2021/12/31"),
+       latitude = 37.4, 
+       longitude = -88.7) %>% 
+  make_julian_year("date") %>%
+  get_site_cdd_curves(ub = 120, lb = 50) %>%
+  match_cdd_obs_site(il_p %>% ungroup(), .)
+  
+
+c(-88.7, 37.4)
+```
+
+
+```{r, echo=F, include = F}
+
+il_p %>% 
+  ggplot(aes(x = cdd, y = .value, ymin = .lower, ymax = .upper)) +
+  geom_vline(xintercept = cdd_med, color = "#FF0000", linetype = 2) +
+  annotate(geom = 'rect', xmin = cdd_lo, xmax = cdd_hi, 
+            ymin = -Inf, ymax = Inf,
+            fill = "#FF0000", alpha = 0.1) +
+  # annotate(geom = 'text', label = paste("CDD: ", cdd_med), 
+  #           x = cdd_med + 325, y = 5, color = "#FF0000", 
+  #          family = formals(theme_ecodata)$base_family) +
+  geom_line() +
+  geom_ribbon(alpha = 0.2) +
+  labs(y = "",
+       title = "Estimated aphid densities",
+       subtitle = "<br><span style='color:#FF0000;'>Red line</span> is median peak<br><span style='color:#ff000066
+;'>Pink band</span> is 95% credible interval",
+x = "Cumulative Degree Days") 
+
+ggsave("plot.png", width = 5, height = 4)
+```
+
+EcoData's PhenoGAM application utilizes nonlinear modeling approaches to estimate pest phenology curves for specific locations and pests using a variety of data sources. We use historical data to fit generalized additive models (GAMs), which link pest abundance to site-specific cumulative degree-days (CDD). By utilizing fine-scale weather data and forecasting, we can turn abundance across CDD into abundance by date. Bayesian GAMs allow for the easy calculation of pest abundance peaks and credible intervals for peak abundance.
+
+::: {layout-ncol=2}
+
+![](map.png)
+
+![](plot.png)
+:::
+
+What this means is that pest abundance data from extension researchers can turn into estimates of pest abundance on your farm. By incorporating phenological models for crops, you can see how pest abundance lines up with crop phenology, enabling data-driven decision making.
+
+
+<!-- # ```{r} -->
+<!-- #  leaflet(options = leafletOptions(minZoom = 9)) %>% -->
+<!-- #         setView(lat = 41.3840395, lng = -72.9168159, zoom = 4) %>% -->
+<!-- #         addTiles() %>% -->
+<!-- #         addMarkers(-88.7, 37.4, -->
+<!-- #                    group = "starting_point", label = "") %>% -->
+<!-- #         setMaxBounds( lng1 = -89 -->
+<!-- #                       , lat1 = 37 -->
+<!-- #                       , lng2 = -88 -->
+<!-- #                       , lat2 = 38 ) -->
+<!-- # ``` -->
+
+
