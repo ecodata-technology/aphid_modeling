@@ -1,0 +1,19 @@
+---
+title: "DSFAS Explore"
+format: html
+editor: source
+---
+
+```{r}
+#| label: dependencies
+library(readr)
+library(dplyr)
+library(here)
+```
+
+```{r}
+#| label: import data
+ad <- read_csv(here("data", "cleaned", "r_padi_cdd.csv"))
+```
+
+
